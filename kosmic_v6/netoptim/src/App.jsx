@@ -704,14 +704,23 @@ export default function NetOptim() {
     if (!tut.on) { setTutRect(null); return; }
     const s = TUTORIAL[tut.step];
     if (!s.anchor) { setTutRect(null); return; }
-    const t = setTimeout(() => {
+    let raf1 = 0, raf2 = 0;
+    const measure = () => {
       const el = anchors[s.anchor] && anchors[s.anchor].current;
       if (!el) { setTutRect(null); return; }
-      const r = el.getBoundingClientRect();
-      setTutRect({ top: r.top, left: r.left, width: r.width, height: r.height });
-      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }, 260);
-    return () => clearTimeout(t);
+      // Scroll first, then read the box on the next frame — reading before the
+      // scroll settles is what put the highlight in the wrong place.
+      el.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      raf1 = requestAnimationFrame(() => {
+        raf2 = requestAnimationFrame(() => {
+          const r = el.getBoundingClientRect();
+          setTutRect({ top: r.top, left: r.left, width: r.width, height: r.height });
+        });
+      });
+    };
+    // Give a tab switch time to mount the target before measuring.
+    const t = setTimeout(measure, 300);
+    return () => { clearTimeout(t); cancelAnimationFrame(raf1); cancelAnimationFrame(raf2); };
   }, [tut, tab]); // eslint-disable-line
   function tutorialWalkthrough() {
     setTut({ on: false, step: 0 }); setTutRect(null);
@@ -1549,7 +1558,9 @@ export default function NetOptim() {
       {/* ============ C6 · TUTORIAL ============ */}
       {tut.on && (
         <div style={S.tutOverlay} onClick={() => tutGo(-1)}>
-          {tutRect && <div style={{ ...S.tutSpot, top: tutRect.top - 6, left: tutRect.left - 6, width: tutRect.width + 12, height: tutRect.height + 12 }} />}
+          {tutRect
+            ? <div style={{ ...S.tutSpot, top: tutRect.top - 6, left: tutRect.left - 6, width: tutRect.width + 12, height: tutRect.height + 12 }} />
+            : <div style={S.tutDim} />}
           <div style={{ ...S.tutCard, ...(tutRect ? tutCardPos(tutRect) : S.tutCardCenter) }} onClick={e => e.stopPropagation()}>
             <div style={S.tutTop}>
               <span style={S.tutStep}>{tut.step + 1} / {TUTORIAL.length}</span>
@@ -1889,8 +1900,9 @@ const S = {
   kpiDelta: { display: "inline-flex", alignItems: "center", gap: 3, fontSize: 13, fontFamily: mono, fontWeight: 600 },
   kpiSub: { fontSize: 11.5, color: DIM, marginTop: 4 },
 
-  tutOverlay: { position: "fixed", inset: 0, zIndex: 60, background: "rgba(5,5,5,.72)", backdropFilter: "blur(1.5px)" },
-  tutSpot: { position: "fixed", borderRadius: 14, border: "2px solid " + BLUE, boxShadow: "0 0 0 9999px rgba(5,5,5,.62), 0 0 34px rgba(121,184,255,.4)", pointerEvents: "none", transition: "all .3s cubic-bezier(.4,0,.2,1)" },
+  tutOverlay: { position: "fixed", inset: 0, zIndex: 60 },
+  tutDim: { position: "fixed", inset: 0, background: "rgba(5,5,5,.74)", backdropFilter: "blur(1.5px)" },
+  tutSpot: { position: "fixed", borderRadius: 14, border: "2px solid " + BLUE, boxShadow: "0 0 0 9999px rgba(5,5,5,.74), 0 0 34px rgba(121,184,255,.45)", pointerEvents: "none", transition: "top .3s cubic-bezier(.4,0,.2,1), left .3s cubic-bezier(.4,0,.2,1), width .3s cubic-bezier(.4,0,.2,1), height .3s cubic-bezier(.4,0,.2,1)" },
   tutCard: { position: "fixed", background: "#131820", border: "1px solid #2c3a4e", borderRadius: 15, padding: 19, boxShadow: "0 24px 64px rgba(0,0,0,.8)" },
   tutCardCenter: { top: "50%", left: "50%", transform: "translate(-50%,-50%)", width: 460 },
   tutTop: { display: "flex", alignItems: "center", gap: 11, marginBottom: 12 },
